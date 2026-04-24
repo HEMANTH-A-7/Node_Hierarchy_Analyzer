@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BFHL — Node Hierarchy Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #1e1e2e;
+      --accent: #7c3aed;
+      --accent2: #06b6d4;
+      --accent3: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --cycle: #f97316;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      overflow-x: hidden;
+    }
+
+    /* grid bg */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,58,237,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,58,237,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-orb-1 { width: 500px; height: 500px; background: rgba(124,58,237,0.12); top: -150px; left: -100px; }
+    .glow-orb-2 { width: 400px; height: 400px; background: rgba(6,182,212,0.08); bottom: -100px; right: -80px; }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* HEADER */
+    header {
+      margin-bottom: 48px;
+      animation: fadeDown 0.6s ease both;
+    }
+
+    .header-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      border: 1px solid rgba(6,182,212,0.3);
+      padding: 4px 12px;
+      border-radius: 2px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(36px, 6vw, 60px);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    h1 span {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* INPUT PANEL */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      margin-bottom: 24px;
+      animation: fadeUp 0.5s ease both;
+      animation-delay: 0.1s;
+    }
+
+    .panel-label {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      padding: 14px 16px;
+      resize: vertical;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 24px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    .btn-primary:hover { background: #6d28d9; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+    /* LOADING */
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      color: var(--accent2);
+      font-size: 13px;
+      padding: 16px 0;
+    }
+    .loading.show { display: flex; }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(6,182,212,0.2);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    /* ERROR */
+    .error-box {
+      display: none;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 6px;
+      padding: 14px 18px;
+      color: var(--danger);
+      font-size: 13px;
+      margin-bottom: 24px;
+      animation: fadeUp 0.3s ease;
+    }
+    .error-box.show { display: block; }
+
+    /* RESULTS */
+    #results { display: none; }
+    #results.show { display: block; animation: fadeUp 0.4s ease; }
+
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* IDENTITY CARDS */
+    .identity-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .id-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .id-card .key {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .id-card .val {
+      font-size: 14px;
+      color: var(--accent2);
+      word-break: break-all;
+    }
+
+    /* SUMMARY */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 18px;
+      text-align: center;
+    }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* HIERARCHIES */
+    .hierarchies-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .hier-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .hier-card:hover { border-color: rgba(124,58,237,0.4); }
+
+    .hier-card.cyclic { border-color: rgba(249,115,22,0.3); }
+    .hier-card.cyclic:hover { border-color: rgba(249,115,22,0.6); }
+
+    .hier-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .root-badge {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 2px;
+    }
+    .badge-tree { background: rgba(16,185,129,0.15); color: var(--success); }
+    .badge-cycle { background: rgba(249,115,22,0.15); color: var(--cycle); }
+
+    .hier-body { padding: 16px; }
+
+    .depth-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .depth-bar {
+      flex: 1;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .depth-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    /* Tree visualization */
+    .tree-view {
+      font-size: 12px;
+      line-height: 1.8;
+      color: var(--text);
+    }
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tree-indent { color: var(--muted); font-size: 11px; }
+    .tree-node-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px; height: 24px;
+      background: rgba(124,58,237,0.15);
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .cycle-msg {
+      color: var(--cycle);
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    /* TAGS ROW */
+    .tags-section { margin-bottom: 32px; }
+
+    .tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-family: 'Space Mono', monospace;
+    }
+    .tag-invalid { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
+    .tag-dup { background: rgba(245,158,11,0.1); color: var(--accent3); border: 1px solid rgba(245,158,11,0.2); }
+    .tag-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+
+    /* RAW JSON */
+    .raw-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      padding: 6px 14px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 0.08em;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+    .raw-toggle:hover { color: var(--text); border-color: var(--muted); }
+
+    .raw-json {
+      display: none;
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      color: var(--accent2);
+      white-space: pre;
+    }
+    .raw-json.show { display: block; }
+
+    /* ANIMATIONS */
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 600px) {
+      .summary-grid { grid-template-columns: repeat(3, 1fr); }
+      .stat-num { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-orb glow-orb-1"></div>
+  <div class="glow-orb glow-orb-2"></div>
+
+  <div class="container">
+    <header>
+      <h1>Node<br /><span>Hierarchy</span><br />Analyzer</h1>
+      <p class="subtitle">Paste your edge definitions (like A->B) to map out tree structures,<br />spot circular dependencies, and explore node relationships visually.</p>
+    </header>
+
+    <div class="panel">
+      <div class="panel-label">Edge Definitions</div>
+      <textarea id="inputData" placeholder='A->B, A->C, B->D, C->E, E->F, X->Y, Y->Z, Z->X, P->Q, hello, 1->2'></textarea>
+      <div class="hint">Use commas or newlines to separate entries. A valid edge connects two single uppercase letters, e.g. A->B.</div>
+      <div class="actions">
+        <button class="btn-primary" id="submitBtn" onclick="submitData()">Run Analysis →</button>
+        <button class="btn-ghost" onclick="loadExample()">Load example</button>
+        <button class="btn-ghost" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      Analyzing graph...
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div id="results">
+      <!-- Identity -->
+      <div class="section-title">User Info</div>
+      <div class="identity-grid" id="identityGrid"></div>
+
+      <!-- Summary -->
+      <div class="section-title">Overview</div>
+      <div class="summary-grid" id="summaryGrid"></div>
+
+      <!-- Hierarchies -->
+      <div class="section-title">Graph Structure</div>
+      <div class="hierarchies-grid" id="hierarchiesGrid"></div>
+
+      <!-- Invalid + Duplicates -->
+      <div class="tags-section">
+        <div class="section-title">Unrecognized Entries</div>
+        <div class="tags-row" id="invalidTags"></div>
+      </div>
+      <div class="tags-section">
+        <div class="section-title">Repeated Edges</div>
+        <div class="tags-row" id="dupTags"></div>
+      </div>
+
+      <!-- Raw JSON -->
+      <div class="section-title">API Output</div>
+      <button class="raw-toggle" onclick="toggleRaw()">Show / Hide JSON</button>
+      <pre class="raw-json" id="rawJson"></pre>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/bfhl'; // change to your hosted URL when deploying
+
+    function loadExample() {
+      document.getElementById('inputData').value =
+        'A->B, A->C, B->D, C->E, E->F, X->Y, Y->Z, Z->X, P->Q, Q->R, G->H, G->H, G->I, hello, 1->2, A->';
+    }
+
+    function clearAll() {
+      document.getElementById('inputData').value = '';
+      document.getElementById('results').classList.remove('show');
+      document.getElementById('errorBox').classList.remove('show');
+    }
+
+    function toggleRaw() {
+      document.getElementById('rawJson').classList.toggle('show');
+    }
+
+    async function submitData() {
+      const raw = document.getElementById('inputData').value.trim();
+      if (!raw) return;
+
+      // Split by comma or newline
+      const data = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+      document.getElementById('loading').classList.add('show');
+      document.getElementById('errorBox').classList.remove('show');
+      document.getElementById('results').classList.remove('show');
+      document.getElementById('submitBtn').disabled = true;
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data }),
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        renderResults(json);
+      } catch (err) {
+        const box = document.getElementById('errorBox');
+        box.textContent = `Error: ${err.message}`;
+        box.classList.add('show');
+      } finally {
+        document.getElementById('loading').classList.remove('show');
+        document.getElementById('submitBtn').disabled = false;
+      }
+    }
+
+    function renderResults(data) {
+      // Identity
+      document.getElementById('identityGrid').innerHTML = [
+        ['user_id', data.user_id],
+        ['email_id', data.email_id],
+        ['roll_number', data.college_roll_number],
+      ].map(([k, v]) => `
+        <div class="id-card">
+          <div class="key">${k}</div>
+          <div class="val">${v}</div>
+        </div>`).join('');
+
+      // Summary
+      const s = data.summary;
+      document.getElementById('summaryGrid').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-num">${s.total_trees}</div>
+          <div class="stat-label">Trees</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:var(--cycle)">${s.total_cycles}</div>
+          <div class="stat-label">Cycles</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:var(--accent2)">${s.largest_tree_root || '—'}</div>
+          <div class="stat-label">Tallest Root</div>
+        </div>`;
+
+      // Hierarchies
+      const maxDepth = Math.max(...data.hierarchies.filter(h => h.depth).map(h => h.depth), 1);
+      document.getElementById('hierarchiesGrid').innerHTML = data.hierarchies.map(h => {
+        const isCyclic = h.has_cycle;
+        const depthPct = h.depth ? (h.depth / maxDepth) * 100 : 0;
+
+        const treeHtml = isCyclic
+          ? `<div class="cycle-msg">↻ Circular dependency detected — cannot form an acyclic tree</div>`
+          : renderTreeHtml(h.tree, h.root);
+
+        const depthHtml = !isCyclic ? `
+          <div class="depth-row">
+            <span>depth ${h.depth}</span>
+            <div class="depth-bar"><div class="depth-fill" style="width:${depthPct}%"></div></div>
+          </div>` : '';
+
+        return `
+          <div class="hier-card ${isCyclic ? 'cyclic' : ''}">
+            <div class="hier-header">
+              <span class="root-badge">${h.root}</span>
+              <span class="badge ${isCyclic ? 'badge-cycle' : 'badge-tree'}">${isCyclic ? 'cycle' : 'tree'}</span>
+            </div>
+            <div class="hier-body">
+              ${depthHtml}
+              <div class="tree-view">${treeHtml}</div>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Invalid entries
+      const invEl = document.getElementById('invalidTags');
+      invEl.innerHTML = data.invalid_entries.length
+        ? data.invalid_entries.map(e => `<span class="tag tag-invalid">${e || '""'}</span>`).join('')
+        : '<span class="tag-empty">None</span>';
+
+      // Duplicates
+      const dupEl = document.getElementById('dupTags');
+      dupEl.innerHTML = data.duplicate_edges.length
+        ? data.duplicate_edges.map(e => `<span class="tag tag-dup">${e}</span>`).join('')
+        : '<span class="tag-empty">None</span>';
+
+      // Raw JSON
+      document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+
+      document.getElementById('results').classList.add('show');
+    }
+
+    function renderTreeHtml(treeObj, root) {
+      const lines = [];
+
+      function walk(node, subtree, prefix, isLast) {
+        const connector = prefix === '' ? '' : (isLast ? '└─ ' : '├─ ');
+        const childPrefix = prefix === '' ? '' : (isLast ? '   ' : '│  ');
+        lines.push(`
+          <div class="tree-node">
+            <span class="tree-indent">${prefix}${connector}</span>
+            <span class="tree-node-label">${node}</span>
+          </div>`);
+        const children = Object.keys(subtree);
+        children.forEach((child, i) => {
+          walk(child, subtree[child], prefix + childPrefix, i === children.length - 1);
+        });
+      }
+
+      walk(root, treeObj[root] || {}, '', true);
+      return lines.join('');
+    }
+  </script>
+</body>
+</html>
